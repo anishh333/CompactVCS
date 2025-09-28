@@ -1,7 +1,7 @@
-import streamlit as st
-from src.services.vcs_services import VCSService
-from src.services.branch_services import BranchService
-from src.services.history_service import HistoryService
+import streamlit as st # pyright: ignore[reportMissingImports]
+from src.services.vcs_services import VCSService, VCSError
+from src.services.branch_services import BranchService, BranchError
+from src.services.history_services import HistoryService, HistoryError
 
 # Initialize services
 vcs = VCSService()
