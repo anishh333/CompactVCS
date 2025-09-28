@@ -1,6 +1,8 @@
 """BranchService: handles branch creation, checkout, and merge."""
+import sys, os
+sys.path.append(os.path.join(os.getcwd(), 'src')) 
 from typing import Optional, List, Dict
-from src.dao.branch_dao import Branch
+from dao.branch_dao import Branch
 
 class BranchError(Exception):
     pass
@@ -8,14 +10,12 @@ class BranchError(Exception):
 class BranchService:
     def __init__(self):
         self.branch: Branch = Branch()
-    
-    # ---------------- Branch Operations ----------------
     def add_branch(self, repo_id: int, name: str, head_commit_id: Optional[int] = None) -> Dict:
         """
         Create a new branch in a repository.
         head_commit_id can be None (branch created at initial state).
         """
-        existing = self.branch.get_branch_by_name(repo_id, name)
+        existing = self.branch.get_branch_by_id(repo_id)
         if existing:
             raise BranchError(f"Branch '{name}' already exists in repository {repo_id}")
         
@@ -41,8 +41,7 @@ class BranchService:
         if not b:
             raise BranchError(f"Branch {branch_id} not found")
         return b
-
-    # ---------------- Checkout ----------------
+    
     def checkout_branch(self, branch_id: int) -> Dict:
         """
         Checkout a branch: returns branch info and current head commit.
@@ -53,7 +52,7 @@ class BranchService:
             raise BranchError(f"Branch {branch_id} has no commits yet")
         return branch
 
-    # ---------------- Merge ----------------
+
     def merge_branches(self, source_branch_id: int, target_branch_id: int) -> Dict:
         """
         Merge source branch into target branch.

@@ -1,9 +1,11 @@
 """VCSService: orchestrates commits, rollback, and file operations."""
+import sys, os
+sys.path.append(os.path.join(os.getcwd(), 'src')) 
 from typing import List, Dict
-from src.dao.repo_dao import Repo
-from src.dao.file_dao import File
-from src.dao.commit_dao import Commit
-from src.dao.commitFile_dao import CommitFile
+from dao.repo_dao import Repo
+from dao.file_dao import File
+from dao.commit_dao import Commit
+from dao.commitFile_dao import CommitFile
 
 class VCSError(Exception):
     pass
@@ -47,7 +49,7 @@ class VCSService:
         return updated_file
 
     # ---------------- Commit Operations ----------------
-    def commit_changes(self, repo_id: int, message: str) -> Dict:
+    def make_commit(self, repo_id: int, message: str) -> Dict:
         commit = self.commit.create_commit(repo_id, message)
         if not commit:
             raise VCSError("Failed to create commit")
@@ -66,11 +68,12 @@ class VCSService:
         return self.commit.list_commits(repo_id)
 
     # ---------------- Rollback Operation ----------------
-    def rollback(self, commit_id: int) -> bool:
+    def rollback_commit(self, commit_id: int) -> bool:
         commit = self.commit.get_commit_by_id(commit_id)
         if not commit:
             raise VCSError(f"Commit {commit_id} not found")
 
+    def rollback_files(self,commit_id,content):
         commit_files = self.commitfile.get_files_by_commit(commit_id)
         if not commit_files:
             raise VCSError(f"No files found for commit {commit_id}")

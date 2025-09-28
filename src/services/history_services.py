@@ -1,7 +1,9 @@
 """HistoryService: View logs and manage commit metadata."""
+import sys, os
+sys.path.append(os.path.join(os.getcwd(), 'src')) 
 from typing import List, Dict
-from src.dao.commit_dao import Commit
-from src.dao.commitFile_dao import CommitFile
+from dao.commit_dao import Commit
+from dao.commitFile_dao import CommitFile
 
 class HistoryError(Exception):
     pass

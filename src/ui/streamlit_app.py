@@ -1,7 +1,11 @@
+import os
+import sys
+sys.path.append(os.path.join(os.getcwd(), 'src'))
 import streamlit as st # pyright: ignore[reportMissingImports]
-from src.services.vcs_services import VCSService
-from src.services.branch_services import BranchService
-from src.services.history_services import HistoryService
+
+from services.vcs_services import VCSService
+from services.branch_services import BranchService
+from services.history_services import HistoryService
 
 # Initialize services
 vcs = VCSService()
@@ -61,6 +65,9 @@ elif menu == "📦 Repositories":
 # -------------------------------
 # Files
 # -------------------------------
+# -------------------------------
+# Files
+# -------------------------------
 elif menu == "📑 Files":
     st.header("📑 File Management")
 
@@ -69,17 +76,34 @@ elif menu == "📑 Files":
     content = st.text_area("File Content")
 
     if st.button("➕ Add File"):
-        new_file = vcs.file.create_file(repo_id, filename, content)
-        if new_file:
+        try:
+            new_file = vcs.add_file(repo_id, filename, content)
             st.success(f"✅ File added: {new_file}")
+        except Exception as e:
+            st.error(f"❌ {e}")
 
     if repo_id:
         st.subheader("Files in Repository")
-        files = vcs.file.list_files_in_repo(repo_id)
-        if files:
-            st.table(files)
-        else:
-            st.warning("No files in this repository yet.")
+        try:
+            files = vcs.list_files_in_repo(repo_id)
+            if files:
+                st.table(files)
+            else:
+                st.warning("No files in this repository yet.")
+        except Exception as e:
+            st.error(f"❌ {e}")
+    # Rollback to a commit
+    st.subheader("↩️ Rollback to Files")
+    rollback_commit_id = st.number_input("Commit ID to rollback", min_value=1, step=1, key="rollback_commit")
+    rollback_content= st.text_area("Content")
+    if st.button("Rollback file"):
+        try:
+            success = vcs.rollback_files(rollback_commit_id,rollback_content)
+            if success:
+                st.success(f"✅ Rolled back to commit {rollback_commit_id}")
+        except Exception as e:
+            st.error(f"❌ {e}")
+
 
 # -------------------------------
 # Commits
@@ -87,21 +111,38 @@ elif menu == "📑 Files":
 elif menu == "📝 Commits":
     st.header("📝 Commit Management")
 
-    repo_id = st.number_input("Repository ID (for commits)", min_value=1, step=1)
+    repo_id = st.number_input("Repository ID (for commits)", min_value=1, step=1, key="commit_repo")
     message = st.text_input("Commit Message")
 
     if st.button("💾 Make Commit"):
-        commit = vcs.make_commit(repo_id, message)
-        if commit:
+        try:
+            commit = vcs.make_commit(repo_id, message)
             st.success(f"✅ Commit created: {commit}")
+        except Exception as e:
+            st.error(f"❌ {e}")
 
     if repo_id:
         st.subheader("Recent Commits")
-        commits = vcs.commit.list_commits(repo_id)
-        if commits:
-            st.table(commits)
-        else:
-            st.warning("No commits found.")
+        try:
+            commits = vcs.list_commits(repo_id)
+            if commits:
+                st.table(commits)
+            else:
+                st.warning("No commits found.")
+        except Exception as e:
+            st.error(f"❌ {e}")
+
+    # Rollback to a commit
+    st.subheader("↩️ Rollback to Commit")
+    rollback_commit_id = st.number_input("Commit ID to rollback", min_value=1, step=1, key="rollback_commit")
+    if st.button("Rollback Commit"):
+        try:
+            success = vcs.rollback_commit(rollback_commit_id)
+            if success:
+                st.success(f"✅ Rolled back to commit {rollback_commit_id}")
+        except Exception as e:
+            st.error(f"❌ {e}")
+
 
 # -------------------------------
 # Branches
@@ -109,21 +150,62 @@ elif menu == "📝 Commits":
 elif menu == "🌿 Branches":
     st.header("🌿 Branch Management")
 
-    repo_id = st.number_input("Repository ID (for branches)", min_value=1, step=1)
+    # Select repository
+    repo_id = st.number_input("Repository ID", min_value=1, step=1)
+
+    # Add branch
+    st.subheader("➕ Create Branch")
     branch_name = st.text_input("Branch Name")
+    if st.button("Create Branch"):
+        try:
+            new_branch = branch_service.add_branch(repo_id, branch_name)
+            st.success(f"✅ Branch created: {new_branch}")
+        except Exception as e:
+            st.error(f"❌ {e}")
 
-    if st.button("➕ Create Branch"):
-        branch = branch_service.add_branch(repo_id, branch_name)
-        if branch:
-            st.success(f"✅ Branch created: {branch}")
-
+    # List branches
+    st.subheader("📋 Existing Branches")
     if repo_id:
-        st.subheader("Repository Branches")
-        branches = branch_service.list_branches(repo_id)
-        if branches:
-            st.table(branches)
-        else:
-            st.warning("No branches yet.")
+        try:
+            branches = branch_service.list_branches(repo_id)
+            if branches:
+                st.table(branches)
+            else:
+                st.info("No branches found for this repository.")
+        except Exception as e:
+            st.error(f"❌ {e}")
+
+    # Checkout branch
+    st.subheader("🔄 Checkout Branch")
+    checkout_id = st.number_input("Branch ID to checkout", min_value=1, step=1, key="checkout_branch")
+    if st.button("Checkout Branch"):
+        try:
+            branch_info = branch_service.checkout_branch(checkout_id)
+            st.success(f"✅ Checked out branch: {branch_info}")
+        except Exception as e:
+            st.error(f"❌ {e}")
+
+    # Merge branches
+    st.subheader("🔀 Merge Branches")
+    source_id = st.number_input("Source Branch ID", min_value=1, step=1, key="source_branch")
+    target_id = st.number_input("Target Branch ID", min_value=1, step=1, key="target_branch")
+    if st.button("Merge Branches"):
+        try:
+            merged = branch_service.merge_branches(source_id, target_id)
+            st.success(f"✅ Branches merged: {merged}")
+        except Exception as e:
+            st.error(f"❌ {e}")
+
+    # Delete branch
+    st.subheader("🗑️ Delete Branch")
+    delete_id = st.number_input("Branch ID to delete", min_value=1, step=1, key="delete_branch")
+    if st.button("Delete Branch"):
+        try:
+            branch_service.delete_branch(delete_id)
+            st.success(f"✅ Branch {delete_id} deleted")
+        except Exception as e:
+            st.error(f"❌ {e}")
+
 
 # -------------------------------
 # History
@@ -133,7 +215,7 @@ elif menu == "📜 History":
 
     repo_id = st.number_input("Repository ID (for history)", min_value=1, step=1)
     if st.button("📖 Show History"):
-        history = history_service.get_commit_history(repo_id)
+        history = history_service.show_history(repo_id)
         if history:
             st.table(history)
         else:
