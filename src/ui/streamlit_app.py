@@ -1,220 +1,115 @@
 import os
 import sys
-sys.path.append(os.path.join(os.getcwd(), 'src'))
-import streamlit as st # pyright: ignore[reportMissingImports]
+sys.path.append(os.path.join(os.getcwd(), "src"))
 
-from services.vcs_services import VCSService
-from services.branch_services import BranchService
-from services.history_services import HistoryService
+import streamlit as st
+from supabase import create_client, Client
 
-# Initialize services
-vcs = VCSService()
-branch_service = BranchService()
-history_service = HistoryService()
+# -----------------------
+# Supabase setup
+# -----------------------
+SUPABASE_URL = st.secrets["supabase"]["supabase_url"]
+SUPABASE_KEY = st.secrets["supabase"]["supabase_key"]
 
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# -----------------------
+# Helper functions
+# -----------------------
+def sign_up(email: str, password: str, name: str):
+    """Sign up user and create profile"""
+    try:
+        auth_response = supabase.auth.sign_up({"email": email, "password": password})
+        user = auth_response.user
+        if user:
+            # Insert into profiles with user.id
+            supabase.table("profiles").insert({
+                "id": user.id,
+                "email": email,
+                "name": name
+            }).execute()
+            return True, "Signup successful! Please login."
+        else:
+            return False, "Signup failed."
+    except Exception as e:
+        return False, f"❌ Signup failed: {e}"
+
+def login(email: str, password: str):
+    """Login user"""
+    try:
+        auth_response = supabase.auth.sign_in_with_password({"email": email, "password": password})
+        user = auth_response.user
+        if user:
+            st.session_state["user"] = user
+            return True, f"Welcome {email}!"
+        else:
+            return False, "Login failed."
+    except Exception as e:
+        return False, f"❌ Login failed: {e}"
+
+def logout():
+    """Logout user"""
+    st.session_state.pop("user", None)
+
+# -----------------------
+# Session state for user
+# -----------------------
+if "user" not in st.session_state:
+    st.session_state["user"] = None
+
+# -----------------------
+# Streamlit UI
+# -----------------------
 st.set_page_config(page_title="CompactVCS", layout="wide")
 
-# Sidebar
-st.sidebar.title("📂 CompactVCS")
-st.sidebar.markdown("A mini Git-like system with Supabase backend")
+st.title("📂 CompactVCS")
 
-menu = st.sidebar.radio(
-    "Navigate",
-    ["🏠 Dashboard", "📦 Repositories", "📑 Files", "📝 Commits", "🌿 Branches", "📜 History"]
-)
+if st.session_state["user"] is None:
+    menu = st.radio("Navigate", ["Login", "Sign Up"])
 
-# -------------------------------
-# Dashboard (GitHub-style home)
-# -------------------------------
-if menu == "🏠 Dashboard":
-    st.title("🚀 Welcome to CompactVCS")
-    st.markdown(
-        """
-        CompactVCS is a **lightweight version control system** built with Python,  
-        Supabase as backend, and Streamlit for the UI.  
+    if menu == "Sign Up":
+        st.header("📝 Sign Up")
+        with st.form("signup_form", clear_on_submit=True):
+            name = st.text_input("Full Name")
+            email = st.text_input("Email")
+            password = st.text_input("Password", type="password")
+            submitted = st.form_submit_button("Sign Up")
+            if submitted:
+                success, msg = sign_up(email, password, name)
+                if success:
+                    st.success(msg)
+                else:
+                    st.error(msg)
 
-        ### Features
-        - Manage repositories
-        - Track files & commits
-        - Create & switch branches
-        - View commit history
-        """
-    )
+    elif menu == "Login":
+        st.header("🔐 Login")
+        with st.form("login_form", clear_on_submit=True):
+            email = st.text_input("Email")
+            password = st.text_input("Password", type="password")
+            submitted = st.form_submit_button("Login")
+            if submitted:
+                success, msg = login(email, password)
+                if success:
+                    st.success(msg)
+                else:
+                    st.error(msg)
 
-# -------------------------------
-# Repositories
-# -------------------------------
-elif menu == "📦 Repositories":
-    st.header("📦 Repository Management")
+else:
+    st.sidebar.write(f"Logged in as: {st.session_state['user'].email}")
+    if st.sidebar.button("Logout"):
+        logout()
+        st.experimental_rerun()
 
-    with st.form("repo_form", clear_on_submit=True):
-        repo_name = st.text_input("Repository Name")
-        submitted = st.form_submit_button("Create Repository")
-        if submitted:
-            new_repo = vcs.repo.create_repo(repo_name)
-            if new_repo:
-                st.success(f"✅ Repository created: {new_repo}")
+    # Main Dashboard
+    st.header("🚀 CompactVCS Dashboard")
+    st.markdown("""
+    Welcome! You are logged in. Here you can manage repositories, files, commits, branches, and history.
+    """)
 
-    st.subheader("Existing Repositories")
-    repos = vcs.repo.list_repos()
-    if repos:
-        st.table(repos)
+    # Example: show user profile info
+    profile = supabase.table("profiles").select("*").eq("id", st.session_state["user"].id).single().execute()
+    if profile.data:
+        st.subheader("Your Profile")
+        st.write(profile.data)
     else:
-        st.info("No repositories found.")
-
-
-# -------------------------------
-# Files
-# -------------------------------
-elif menu == "📑 Files":
-    st.header("📑 File Management")
-
-    repo_id = st.number_input("Repository ID", min_value=1, step=1)
-    filename = st.text_input("Filename")
-    content = st.text_area("File Content")
-
-    if st.button("➕ Add File"):
-        try:
-            new_file = vcs.add_file(repo_id, filename, content)
-            st.success(f"✅ File added: {new_file}")
-        except Exception as e:
-            st.error(f"❌ {e}")
-
-    if repo_id:
-        st.subheader("Files in Repository")
-        try:
-            files = vcs.list_files_in_repo(repo_id)
-            if files:
-                st.table(files)
-            else:
-                st.warning("No files in this repository yet.")
-        except Exception as e:
-            st.error(f"❌ {e}")
-    # Rollback to a commit
-    st.subheader("↩️ Rollback to Files")
-    rollback_commit_id = st.number_input("Commit ID to rollback", min_value=1, step=1, key="rollback_commit")
-    rollback_content= st.text_area("Content")
-    if st.button("Rollback file"):
-        try:
-            success = vcs.rollback_files(rollback_commit_id,rollback_content)
-            if success:
-                st.success(f"✅ Rolled back to commit {rollback_commit_id}")
-        except Exception as e:
-            st.error(f"❌ {e}")
-
-
-# -------------------------------
-# Commits
-# -------------------------------
-elif menu == "📝 Commits":
-    st.header("📝 Commit Management")
-
-    repo_id = st.number_input("Repository ID (for commits)", min_value=1, step=1, key="commit_repo")
-    message = st.text_input("Commit Message")
-
-    if st.button("💾 Make Commit"):
-        try:
-            commit = vcs.make_commit(repo_id, message)
-            st.success(f"✅ Commit created: {commit}")
-        except Exception as e:
-            st.error(f"❌ {e}")
-
-    if repo_id:
-        st.subheader("Recent Commits")
-        try:
-            commits = vcs.list_commits(repo_id)
-            if commits:
-                st.table(commits)
-            else:
-                st.warning("No commits found.")
-        except Exception as e:
-            st.error(f"❌ {e}")
-
-    # Rollback to a commit
-    st.subheader("↩️ Rollback to Commit")
-    rollback_commit_id = st.number_input("Commit ID to rollback", min_value=1, step=1, key="rollback_commit")
-    if st.button("Rollback Commit"):
-        try:
-            success = vcs.rollback_commit(rollback_commit_id)
-            if success:
-                st.success(f"✅ Rolled back to commit {rollback_commit_id}")
-        except Exception as e:
-            st.error(f"❌ {e}")
-
-
-# -------------------------------
-# Branches
-# -------------------------------
-elif menu == "🌿 Branches":
-    st.header("🌿 Branch Management")
-
-    # Select repository
-    repo_id = st.number_input("Repository ID", min_value=1, step=1)
-
-    # Add branch
-    st.subheader("➕ Create Branch")
-    branch_name = st.text_input("Branch Name")
-    if st.button("Create Branch"):
-        try:
-            new_branch = branch_service.add_branch(repo_id, branch_name)
-            st.success(f"✅ Branch created: {new_branch}")
-        except Exception as e:
-            st.error(f"❌ {e}")
-
-    # List branches
-    st.subheader("📋 Existing Branches")
-    if repo_id:
-        try:
-            branches = branch_service.list_branches(repo_id)
-            if branches:
-                st.table(branches)
-            else:
-                st.info("No branches found for this repository.")
-        except Exception as e:
-            st.error(f"❌ {e}")
-
-    # Checkout branch
-    st.subheader("🔄 Checkout Branch")
-    checkout_id = st.number_input("Branch ID to checkout", min_value=1, step=1, key="checkout_branch")
-    if st.button("Checkout Branch"):
-        try:
-            branch_info = branch_service.checkout_branch(checkout_id)
-            st.success(f"✅ Checked out branch: {branch_info}")
-        except Exception as e:
-            st.error(f"❌ {e}")
-
-    # Merge branches
-    st.subheader("🔀 Merge Branches")
-    source_id = st.number_input("Source Branch ID", min_value=1, step=1, key="source_branch")
-    target_id = st.number_input("Target Branch ID", min_value=1, step=1, key="target_branch")
-    if st.button("Merge Branches"):
-        try:
-            merged = branch_service.merge_branches(source_id, target_id)
-            st.success(f"✅ Branches merged: {merged}")
-        except Exception as e:
-            st.error(f"❌ {e}")
-
-    # Delete branch
-    st.subheader("🗑️ Delete Branch")
-    delete_id = st.number_input("Branch ID to delete", min_value=1, step=1, key="delete_branch")
-    if st.button("Delete Branch"):
-        try:
-            branch_service.delete_branch(delete_id)
-            st.success(f"✅ Branch {delete_id} deleted")
-        except Exception as e:
-            st.error(f"❌ {e}")
-
-
-# -------------------------------
-# History
-# -------------------------------
-elif menu == "📜 History":
-    st.header("📜 Commit History")
-
-    repo_id = st.number_input("Repository ID (for history)", min_value=1, step=1)
-    if st.button("📖 Show History"):
-        history = history_service.show_history(repo_id)
-        if history:
-            st.table(history)
-        else:
-            st.warning("No history available.")
+        st.warning("Profile not found.")
