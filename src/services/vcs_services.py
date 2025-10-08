@@ -42,8 +42,12 @@ class VCSService:
     def list_files_in_repo(self, repo_id: int) -> List[Dict]:
         return self.file.list_files_in_repo(repo_id)
 
-    def update_file(self, file_id: int, new_filename: str = None) -> Dict:
-        updated_file = self.file.update_file(file_id, new_filename=new_filename)
+    def update_file(self, file_id: int, new_filename: str = None, new_content: str = None) -> Dict:
+        updated_file = self.file.update_file(
+            file_id,
+            new_filename=new_filename,
+            new_content=new_content,
+        )
         if not updated_file:
             raise VCSError(f"Failed to update file {file_id}")
         return updated_file
@@ -73,7 +77,6 @@ class VCSService:
         if not commit:
             raise VCSError(f"Commit {commit_id} not found")
 
-    def rollback_files(self,commit_id,content):
         commit_files = self.commitfile.get_files_by_commit(commit_id)
         if not commit_files:
             raise VCSError(f"No files found for commit {commit_id}")

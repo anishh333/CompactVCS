@@ -21,6 +21,17 @@ class Branch:
         resp=self._sb.table("branch").delete().eq("branch_id",branch_id).execute()
         return bool(resp.data)
     
+    def get_branch_by_name(self, repo_id: int, name: str) -> Optional[Dict]:
+        """Get a branch by name within a repository."""
+        resp = (
+            self._sb.table("branch")
+            .select("*")
+            .eq("repo_id", repo_id)
+            .eq("name", name)
+            .execute()
+        )
+        return resp.data[0] if resp.data else None
+    
     def list_branches(self, repo_id: int) -> List[Dict]:
         """List all branches in a repository."""
         resp = (

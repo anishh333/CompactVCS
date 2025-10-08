@@ -15,7 +15,7 @@ class BranchService:
         Create a new branch in a repository.
         head_commit_id can be None (branch created at initial state).
         """
-        existing = self.branch.get_branch_by_id(repo_id)
+        existing = self.branch.get_branch_by_name(repo_id, name)
         if existing:
             raise BranchError(f"Branch '{name}' already exists in repository {repo_id}")
         

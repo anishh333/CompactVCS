@@ -26,9 +26,24 @@ class File:
         resp=self._sb.table("file").delete().eq("file_id",file_id).execute()
         return bool(resp.data)
     
-    def update_file(self,file_id:int,new_name:str)->Optional[Dict]:
-        resp=self._sb.table("file").update({"name":new_name}).eq("file_id",file_id).execute()
-        return resp.data
+    def update_file(self, file_id: int, new_filename: str = None, new_content: str = None) -> Optional[Dict]:
+        update_fields: Dict = {}
+        if new_filename is not None:
+            update_fields["filename"] = new_filename
+        if new_content is not None:
+            update_fields["content"] = new_content
+
+        if not update_fields:
+            return None
+
+        resp = (
+            self._sb
+            .table("file")
+            .update(update_fields)
+            .eq("file_id", file_id)
+            .execute()
+        )
+        return resp.data[0] if resp.data else None
     
     def list_files_in_repo(self, repo_id: int) -> Optional[Dict]:
         resp = self._sb.table("file").select("*").eq("repo_id", repo_id).order("file_id", desc=True).execute()
