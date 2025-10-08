@@ -79,7 +79,17 @@ try:
     branches = BranchService()
     history = HistoryService()
 except Exception as e:
-    st.error(f"Supabase configuration not found or invalid. Ensure .env contains supabase_url and supabase_key. Details: {e}")
+    st.error("❌ Supabase configuration missing!")
+    st.markdown("""
+    **Create a `.env` file in your project root with:**
+    ```
+    supabase_url=YOUR_SUPABASE_URL
+    supabase_key=YOUR_SUPABASE_ANON_KEY
+    supabase_service_role_key=YOUR_SUPABASE_SERVICE_ROLE_KEY
+    ```
+    
+    **Get these values from:** Supabase Dashboard → Settings → API
+    """)
     st.stop()
 
 if st.session_state["user"] is None:
